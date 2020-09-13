@@ -48,7 +48,8 @@ BOOST_FUSION_ADAPT_STRUCT(
 // clang-format on
 
 template <typename Iterator>
-struct express_grammar : qi::grammar<Iterator, express_schema()> {
+struct express_grammar
+    : qi::grammar<Iterator, express_schema(), ascii::space_type> {
   express_grammar() : express_grammar::base_type{express_} {
     using phoenix::at_c;
     using phoenix::push_back;
@@ -59,19 +60,20 @@ struct express_grammar : qi::grammar<Iterator, express_schema()> {
     using qi::space;
     using namespace qi::labels;
 
-    enum_ = "TYPE "  //
-            >> +(char_ - space)[at_c<0>(_val) += _1]  // type name
-            >> " = ENUMERATION OF"  //
-            >> *space >> '(' >> (as_string[*(char_ - char_(",)") - space)] %
-                                 (*space >> ','))[at_c<2>(_val) = _1] >>
-            ");"  //
-            >> *(char_ - "END_TYPE;")  //
-            >> "END_TYPE;";
+    enum_ =
+        "TYPE "  //
+        >>
+        +(char_ - '=')[at_c<0>(_val) += _1, at_c<1>(_val) = "ENUMERATION"]  //
+        >> "= ENUMERATION OF"  //
+        >> *space >> '(' >> (as_string[*(char_ - char_(",)") - space)] %
+                             (*space >> ','))[at_c<2>(_val) = _1] >>
+        *(char_ - "END_TYPE;")  //
+        >> "END_TYPE;";
 
     type_ = "TYPE "  //
-            >> +(char_ - space)[at_c<0>(_val) += _1]  // type name
-            >> " = "  //
-            >> +(char_ - ';')[at_c<1>(_val) += _1]  // data type
+            >> *(char_ - '=')[at_c<0>(_val) += _1]  // type name
+            >> "= "  //
+            >> *(char_ - ';')[at_c<1>(_val) += _1]  // data type
             >> *(char_ - "END_TYPE;")  //
             >> "END_TYPE;";
 
@@ -84,14 +86,15 @@ struct express_grammar : qi::grammar<Iterator, express_schema()> {
               >> "END_SCHEMA";
 
     comment_ = "(*" >> *(char_ - "*)") >> "*)";
-    express_ = comment_ >> *space >> schema_[_val = _1] >> *space;
+
+    express_ = *comment_ >> schema_[_val = _1];
   }
 
-  qi::rule<Iterator, express_type()> enum_;
-  qi::rule<Iterator, express_type()> type_;
-  qi::rule<Iterator, express_schema()> schema_;
-  qi::rule<Iterator> comment_;
-  qi::rule<Iterator, express_schema()> express_;
+  qi::rule<Iterator, express_type(), ascii::space_type> enum_;
+  qi::rule<Iterator, express_type(), ascii::space_type> type_;
+  qi::rule<Iterator, express_schema(), ascii::space_type> schema_;
+  qi::rule<Iterator, ascii::space_type> comment_;
+  qi::rule<Iterator, express_schema(), ascii::space_type> express_;
 };
 
 int main() {
@@ -141,9 +144,12 @@ int main() {
     std::cout << "-------------------------\n";
     std::cout << "Parsing succeeded\n";
     std::cout << "schema: \"" << schema.name_ << "\"\n";
+    // for (auto const& d : schema.details_) {
+    //   std::cout << "    \"" << d << "\"\n";
+    // }
     std::cout << "number of types: " << schema.types_.size() << "\n";
     for (auto const& t : schema.types_) {
-      std::cout << "  name=" << t.name_ << ", type=" << t.type_ << "\n";
+      std::cout << "  name=\"" << t.name_ << "\", type=\"" << t.type_ << "\"\n";
       for (auto const& d : t.details_) {
         std::cout << "    \"" << d << "\"\n";
       }
