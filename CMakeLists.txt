@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.17)
+project(ifc)
+
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_MULTITHREADED ON)
+if (MSVC)
+  set(Boost_USE_STATIC_RUNTIME ON)
+endif()
+find_package(Boost REQUIRED)
+link_directories(${Boost_LIBRARY_DIRS})
+include_directories(SYSTEM ${Boost_INCLUDE_DIR})
+
+file(GLOB ifc-files src/*.cc)
+add_executable(ifc ${ifc-files})
+target_compile_features(ifc PUBLIC cxx_std_17)
+target_link_libraries(ifc ${Boost_LIBRARIES})
