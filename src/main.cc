@@ -60,15 +60,23 @@ struct express_grammar
     using qi::space;
     using namespace qi::labels;
 
-    enum_ =
-        "TYPE "  //
-        >>
-        +(char_ - '=')[at_c<0>(_val) += _1, at_c<1>(_val) = "ENUMERATION"]  //
-        >> "= ENUMERATION OF"  //
-        >> *space >> '(' >> (as_string[*(char_ - char_(",)") - space)] %
-                             (*space >> ','))[at_c<2>(_val) = _1] >>
-        *(char_ - "END_TYPE;")  //
-        >> "END_TYPE;";
+    enum_ = "TYPE "  //
+            >> as_string[lexeme[+(char_ - '=')]]
+                        [at_c<0>(_val) = _1, at_c<1>(_val) = "ENUMERATION"]  //
+            >> "= ENUMERATION OF"  //
+            >> *space >> '(' >> (as_string[*(char_ - char_(",)") - space)] %
+                                 (*space >> ','))[at_c<2>(_val) = _1] >>
+            *(char_ - "END_TYPE;")  //
+            >> "END_TYPE;";
+
+    select_ = "TYPE "  //
+              >> as_string[lexeme[+(char_ - '=')]]
+                          [at_c<0>(_val) = _1, at_c<1>(_val) = "SELECT"]  //
+              >> "= SELECT"  //
+              >> *space >> '(' >> (as_string[*(char_ - char_(",)") - space)] %
+                                   (*space >> ','))[at_c<2>(_val) = _1]  //
+              >> *(char_ - "END_TYPE;")  //
+              >> "END_TYPE;";
 
     type_ = "TYPE "  //
             >> *(char_ - '=')[at_c<0>(_val) += _1]  // type name
@@ -77,13 +85,19 @@ struct express_grammar
             >> *(char_ - "END_TYPE;")  //
             >> "END_TYPE;";
 
+    entity_ = "ENTITY "  //
+              >> as_string[lexeme[*(char_ - space - "END_ENTITY;")]]
+                          [at_c<0>(_val) = _1]  // type name
+              >> *(char_ - "END_ENTITY;")  //
+              >> "END_ENTITY;";
+
     schema_ = "SCHEMA "  //
-              >> +(char_ - ';')[at_c<0>(_val) += _1]  // schema name
-              >> *((enum_[push_back(at_c<1>(_val), _1)] |
-                    type_[push_back(at_c<1>(_val), _1)]  //
-                    | char_) -  // types
-                   "END_SCHEMA")  //
-              >> "END_SCHEMA";
+              >> as_string[+(char_ - ';')][at_c<0>(_val) = _1] >> ';'  //
+              >> *(enum_[push_back(at_c<1>(_val), _1)] |
+                   entity_[push_back(at_c<1>(_val), _1)] |
+                   select_[push_back(at_c<1>(_val), _1)] |
+                   type_[push_back(at_c<1>(_val), _1)])  //
+              >> *(char_ - "END_SCHEMA") >> "END_SCHEMA";
 
     comment_ = "(*" >> *(char_ - "*)") >> "*)";
 
@@ -91,7 +105,9 @@ struct express_grammar
   }
 
   qi::rule<Iterator, express_type(), ascii::space_type> enum_;
+  qi::rule<Iterator, express_type(), ascii::space_type> select_;
   qi::rule<Iterator, express_type(), ascii::space_type> type_;
+  qi::rule<Iterator, express_type(), ascii::space_type> entity_;
   qi::rule<Iterator, express_schema(), ascii::space_type> schema_;
   qi::rule<Iterator, ascii::space_type> comment_;
   qi::rule<Iterator, express_schema(), ascii::space_type> express_;
@@ -104,9 +120,10 @@ int main() {
   typedef std::string::const_iterator iterator_type;
 
   std::string str =
-      "(*\n"
-      "    Comment\n"
-      "*)\n\n"
+      // clang-format off
+      // "(*\n"
+      // "    Comment\n"
+      // "*)\n\n"
       "SCHEMA IFC2X3;\n"
       "\n"
       "TYPE IfcAbsorbedDoseMeasure = REAL;\n"
@@ -120,6 +137,31 @@ int main() {
       "    WR1 : {0.0 <= SELF <= 1.0};\n"
       "END_TYPE;\n"
       "\n"
+      "TYPE IfcGeometricSetSelect = SELECT\n"
+      "  (IfcPoint\n"
+      "  ,IfcCurve\n"
+      "  ,IfcSurface\n);"
+      "END_TYPE;\n"
+      "\n"
+      "ENTITY IfcAppliedValue"
+      "   ABSTRACT SUPERTYPE OF (ONEOF\n"
+      "     (IfcCostValue\n"
+      "     ,IfcEnvironmentalImpactValue));\n"
+      "    Name : OPTIONAL IfcLabel;\n"
+      "    Description : OPTIONAL IfcText;\n"
+      "    AppliedValue : OPTIONAL IfcAppliedValueSelect;\n"
+      "    UnitBasis : OPTIONAL IfcMeasureWithUnit;\n"
+      "    ApplicableDate : OPTIONAL IfcDateTimeSelect;\n"
+      "    FixedUntilDate : OPTIONAL IfcDateTimeSelect;\n"
+      "  INVERSE\n"
+      "     ValuesReferenced : SET [0:?] OF IfcReferencesValueDocument FOR ReferencingValues;\n"
+      "     ValueOfComponents : SET [0:?] OF IfcAppliedValueRelationship FOR ComponentOfTotal;\n"
+      "     IsComponentIn : SET [0:?] OF IfcAppliedValueRelationship FOR Components;\n"
+      "  WHERE\n"
+      "   WR1 : EXISTS (AppliedValue) OR\n"
+      "            EXISTS (ValueOfComponents);\n"
+      "END_ENTITY;\n"
+      "\n"
       "TYPE IfcActionTypeEnum = ENUMERATION OF\n"
       "  (PERMANENT_G\n"
       "  ,VARIABLE_Q\n"
@@ -128,7 +170,9 @@ int main() {
       "  ,NOTDEFINED);\n"
       "END_TYPE;\n"
       "\n"
-      "END_SCHEMA\n";
+      "END_SCHEMA"
+        ;
+  // clang-format on
   std::cout << str << "\n";
   auto iter = str.cbegin();
   auto end = str.cend();
