@@ -73,14 +73,13 @@ struct express_grammar
               >> as_string[lexeme[+(char_ - '=')]]
                           [at_c<0>(_val) = _1, at_c<1>(_val) = "SELECT"]  //
               >> "= SELECT"  //
-              >> *space >> '(' >> (as_string[*(char_ - char_(",)") - space)] %
-                                   (*space >> ','))[at_c<2>(_val) = _1]  //
+              >> '(' >> (as_string[lexeme[*(char_ - char_(",)") - space)]] %
+                         ',')[at_c<2>(_val) = _1]  //
               >> *(char_ - "END_TYPE;")  //
               >> "END_TYPE;";
 
     type_ = "TYPE "  //
-            >> *(char_ - '=')[at_c<0>(_val) += _1]  // type name
-            >> "= "  //
+            >> as_string[lexeme[+(char_ - '=')]][at_c<0>(_val) = _1] >> "= "  //
             >> *(char_ - ';')[at_c<1>(_val) += _1]  // data type
             >> *(char_ - "END_TYPE;")  //
             >> "END_TYPE;";
@@ -92,7 +91,8 @@ struct express_grammar
               >> "END_ENTITY;";
 
     schema_ = "SCHEMA "  //
-              >> as_string[+(char_ - ';')][at_c<0>(_val) = _1] >> ';'  //
+              >> as_string[lexeme[+(char_ - ';')]][at_c<0>(_val) = _1] >>
+              ';'  //
               >> *(enum_[push_back(at_c<1>(_val), _1)] |
                    entity_[push_back(at_c<1>(_val), _1)] |
                    select_[push_back(at_c<1>(_val), _1)] |
